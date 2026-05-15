@@ -1299,65 +1299,67 @@ document.getElementById('convertPptxBtn').addEventListener('click', async () => 
   fill.style.width = '20%';
 
   try {
-    const reader = new FileReader();
-    reader.onload = function(e) {
-      lbl.textContent = 'جاري استخراج وتحويل الشرائح (قد يستغرق بعض الوقت)...';
-      fill.style.width = '50%';
-      
-      $(pptxRender).empty();
-      
-      try {
-        $(pptxRender).pptxToHtml({
-          pptxFileUrl: e.target.result,
-          slideMode: false,
-          keyBoardShortCut: false,
-          mediaProcess: true,
-          jsZipV2: false
-        });
-      } catch(err) {
-        console.error(err);
-        lbl.textContent = '❌ حدث خطأ أثناء المعالجة!';
-        showToast('خطأ في قراءة ملف الـ PPTX', 'error');
-        btn.disabled = false;
-        return;
-      }
+    const fileUrl = URL.createObjectURL(pptxFile);
+    lbl.textContent = 'جاري استخراج وتحويل الشرائح (قد يستغرق بعض الوقت)...';
+    fill.style.width = '50%';
+    
+    $(pptxRender).empty();
+    
+    try {
+      $(pptxRender).pptxToHtml({
+        pptxFileUrl: fileUrl,
+        slideMode: false,
+        keyBoardShortCut: false,
+        mediaProcess: true,
+        jsZipV2: false
+      });
+    } catch(err) {
+      console.error(err);
+      lbl.textContent = '❌ حدث خطأ أثناء المعالجة!';
+      showToast('خطأ في قراءة ملف الـ PPTX', 'error');
+      btn.disabled = false;
+      return;
+    }
 
-      let waitTimer = setInterval(() => {
-        if($(pptxRender).find('.slide').length > 0) {
-          clearInterval(waitTimer);
-          lbl.textContent = 'جاري تحويل الشرائح لـ PDF...';
-          fill.style.width = '80%';
+    let waitTimer = setInterval(() => {
+      if($(pptxRender).find('.slide').length > 0) {
+        clearInterval(waitTimer);
+        lbl.textContent = 'جاري تحويل الشرائح لـ PDF...';
+        fill.style.width = '80%';
+        
+        setTimeout(() => {
+          const opt = {
+            margin: 0,
+            filename: pptxFile.name.replace('.pptx', '.pdf'),
+            image: { type: 'jpeg', quality: 0.98 },
+            html2canvas: { scale: 2, useCORS: true, logging: false },
+            jsPDF: { unit: 'in', format: 'letter', orientation: 'landscape' }
+          };
           
-          setTimeout(() => {
-            const opt = {
-              margin: 0,
-              filename: pptxFile.name.replace('.pptx', '.pdf'),
-              image: { type: 'jpeg', quality: 0.98 },
-              html2canvas: { scale: 2, useCORS: true, logging: false },
-              jsPDF: { unit: 'in', format: 'letter', orientation: 'landscape' }
-            };
-            
-            html2pdf().set(opt).from(pptxRender).save().then(() => {
-              lbl.textContent = '✅ اكتمل التنزيل!';
-              fill.style.width = '100%';
-              showToast('✅ تم تحويل الملف بنجاح!', 'success');
-              setTimeout(() => {
-                btn.disabled = false;
-                prog.classList.remove('show');
-              }, 2000);
-            }).catch(err => {
-              console.error(err);
-              showToast('خطأ أثناء التحويل لـ PDF', 'error');
+          html2pdf().set(opt).from(pptxRender).save().then(() => {
+            lbl.textContent = '✅ اكتمل التنزيل!';
+            fill.style.width = '100%';
+            showToast('✅ تم تحويل الملف بنجاح!', 'success');
+            setTimeout(() => {
               btn.disabled = false;
               prog.classList.remove('show');
-            });
-          }, 3000); 
-        }
-      }, 500);
-      
-      setTimeout(() => clearInterval(waitTimer), 20000);
-    };
-    reader.readAsArrayBuffer(pptxFile);
+              URL.revokeObjectURL(fileUrl);
+            }, 2000);
+          }).catch(err => {
+            console.error(err);
+            showToast('خطأ أثناء التحويل لـ PDF', 'error');
+            btn.disabled = false;
+            prog.classList.remove('show');
+            URL.revokeObjectURL(fileUrl);
+          });
+        }, 3000); 
+      }
+    }, 500);
+    
+    setTimeout(() => {
+      clearInterval(waitTimer);
+      if(fill.style.width !== '100%') URL.revokeObjectURL(fileUrl);
+    }, 60000);
   } catch(e) {
     console.error(e);
     showToast('حدث خطأ غير متوقع', 'error');
