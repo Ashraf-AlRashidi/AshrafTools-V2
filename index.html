@@ -1,0 +1,918 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AshrafTools — أدوات المهندس أشرف</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script type="module" src="firebase-config.js"></script>
+
+<script src="auth.js"></script>
+
+<script src="ai-judge.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/meshesha/pptxjs@1.21.1/css/pptxjs.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/meshesha/pptxjs@1.21.1/css/nv.d3.min.css">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- ══ AUTH MODAL ══ -->
+<div id="authModal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.7);backdrop-filter:blur(8px);align-items:center;justify-content:center;">
+  <div style="background:var(--surface);border:1px solid var(--border2);border-radius:20px;padding:32px;width:100%;max-width:380px;margin:16px;position:relative;">
+    <button onclick="closeAuthModal()" style="position:absolute;top:16px;left:16px;background:none;border:none;color:var(--muted);font-size:1.2rem;cursor:pointer;">✕</button>
+    <div id="authTitle" style="font-size:1.3rem;font-weight:900;margin-bottom:24px;text-align:center;">🔑 تسجيل الدخول</div>
+    
+    <div id="authNameWrap" style="display:none;margin-bottom:14px;">
+      <label class="flabel">الاسم</label>
+      <input id="authName" class="finput" type="text" placeholder="اسمك إيه؟">
+    </div>
+    <div style="margin-bottom:14px;">
+      <label class="flabel">الإيميل</label>
+      <input id="authEmail" class="finput" type="email" placeholder="example@email.com" style="direction:ltr;">
+    </div>
+    <div style="margin-bottom:20px;">
+      <label class="flabel">الباسورد</label>
+      <input id="authPass" class="finput" type="password" placeholder="••••••••" style="direction:ltr;"
+        onkeydown="if(event.key==='Enter')submitAuth()">
+    </div>
+    
+    <div id="authError" style="color:var(--red);font-size:.82rem;margin-bottom:12px;min-height:20px;text-align:center;"></div>
+    
+    <button id="authSubmitBtn" class="btn btn-primary" onclick="submitAuth()" style="width:100%;justify-content:center;padding:12px;">دخول</button>
+    
+    <div id="authSwitchText" style="text-align:center;margin-top:16px;font-size:.83rem;color:var(--muted);">
+      مش عندك حساب؟ <span onclick="switchAuthMode('register')" style="color:var(--blue);cursor:pointer;font-weight:700;">سجّل دلوقتي</span>
+    </div>
+  </div>
+</div>
+
+<!-- NAV -->
+<nav class="nav">
+  <div class="brand">
+    <div class="brand-name"><span class="at">Ashraf</span><span class="tools">Tools</span></div>
+    <div class="brand-sub">أدوات المهندس</div>
+  </div>
+  <button class="tab-btn active" onclick="switchTab('img',this)">🖼️ صور → PDF</button>
+  <button class="tab-btn" onclick="switchTab('pptx',this)">📊 PPTX → PDF</button>
+  <button class="tab-btn" onclick="switchTab('code',this)">
+    ☕ Java Editor
+    <span class="tab-badge" id="fileCountBadge">1</span>
+  </button>
+  <button class="tab-btn" onclick="switchTab('diagram',this)">📊 Class Diagram</button>
+  <button class="tab-btn" onclick="switchTab('project',this)">🚀 مشروع كامل → ZIP</button>
+  <button class="tab-btn" onclick="switchTab('guide',this)" style="color:var(--orange);border-bottom-color:transparent;">📖 دليل الاستخدام</button>
+  <button class="tab-btn" onclick="switchTab('keys',this)" style="color:var(--cyan);border-bottom-color:transparent;">⌨️ الاختصارات</button>
+  <button class="tab-btn" onclick="switchTab('problems',this)">🧩 تحديات
+    <span class="tab-badge" style="background:var(--orange);">30</span>
+  </button>
+  <button class="tab-btn" onclick="switchTab('leaderboard',this)">🏆 المتصدرون</button>
+  <button class="tab-btn" onclick="switchTab('profile',this)">👤 بروفايل</button>
+  <button id="loginBtn" class="btn btn-primary" onclick="openAuthModal('login')"
+    style="margin-right:auto;margin-left:8px;flex-shrink:0;padding:7px 14px;font-size:.8rem;">
+    🚀 دخول / تسجيل
+  </button>
+
+  <div style="display:flex;align-items:center;gap:6px;padding:0 16px;flex-shrink:0;border-right:1px solid var(--border);">
+
+    <span style="font-size:1rem;">👁️</span>
+    <div style="display:flex;flex-direction:column;line-height:1.2;">
+      <span id="visitCount" style="font-size:1rem;font-weight:900;color:var(--blue);font-family:var(--font-mono);">...</span>
+      <span style="font-size:.58rem;color:var(--muted);letter-spacing:1px;">زيارة</span>
+    </div>
+  </div>
+</nav>
+
+<!-- ══ PAGE 1: IMAGES ══ -->
+<div id="page-img" class="page active">
+  <div class="page-header">
+    <div class="page-icon blue">🖼️</div>
+    <div>
+      <div class="page-title">صور إلى PDF</div>
+      <div class="page-sub">ارفع صورك، رتّبها بالسحب، وحوّلها لـ PDF في ثوانٍ</div>
+    </div>
+  </div>
+
+  <div class="dropzone" id="dropzone">
+    <span class="drop-icon">📁</span>
+    <div style="font-size:1.1rem;font-weight:700;margin-bottom:5px;">اسحب الصور هنا</div>
+    <div style="color:var(--muted);font-size:.83rem;margin-bottom:16px;">PNG · JPG · WEBP · GIF</div>
+    <button class="btn btn-primary" onclick="event.stopPropagation();document.getElementById('imgInput').click()">+ اختر صور</button>
+    <input type="file" id="imgInput" multiple accept="image/*" style="display:none">
+  </div>
+
+  <div id="imgPreview" style="display:none">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin:20px 0 12px">
+      <span style="font-size:.72rem;font-weight:900;text-transform:uppercase;letter-spacing:2px;color:var(--muted)">الصور المختارة</span>
+      <span style="color:var(--muted);font-size:.83rem"><strong id="imgCount" style="color:var(--text)">0</strong> صورة</span>
+    </div>
+    <div class="img-grid" id="imgGrid"></div>
+    <p style="text-align:center;color:var(--muted);font-size:.74rem;margin-top:9px;">💡 اسحب لإعادة الترتيب</p>
+
+    <div class="settings-row">
+      <div class="sf"><label class="flabel">حجم الصفحة</label><select class="fselect" id="pgSize"><option value="a4">A4</option><option value="a3">A3</option><option value="letter">Letter</option><option value="fit">مناسب للصورة</option></select></div>
+      <div class="sf"><label class="flabel">الاتجاه</label><select class="fselect" id="pgOrient"><option value="portrait">عمودي</option><option value="landscape">أفقي</option><option value="auto">تلقائي</option></select></div>
+      <div class="sf"><label class="flabel">اسم الملف</label><input type="text" class="finput" id="pdfName" value="Assignment"></div>
+    </div>
+    <div class="action-row">
+      <div style="color:var(--muted);font-size:.85rem"><strong id="imgCount2" style="color:var(--text)">0</strong> صورة محددة</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-ghost" id="clearImgs">🗑️ مسح الكل</button>
+        <button class="btn btn-primary" id="convertPDF">⚡ تحويل إلى PDF</button>
+      </div>
+    </div>
+    <div class="prog-wrap" id="imgProg">
+      <div class="prog-label" id="imgProgLbl">جاري...</div>
+      <div class="prog-bg"><div class="prog-fill" id="imgProgFill"></div></div>
+    </div>
+  </div>
+  <div class="signature"><div class="sig-line1">✦ AshrafTools ✦ بواسطة البشمهندس</div><div class="sig-line2"><span id="sig1"></span></div></div>
+</div>
+
+<!-- ══ PAGE PPTX ══ -->
+<div id="page-pptx" class="page">
+  <div class="page-header">
+    <div class="page-icon purple">📊</div>
+    <div>
+      <div class="page-title">PowerPoint إلى PDF</div>
+      <div class="page-sub">ارفع ملف PPTX وحوّله مباشرة لـ PDF (يعمل مجاناً 100% داخل المتصفح)</div>
+    </div>
+  </div>
+
+  <div class="dropzone" id="pptxDropzone">
+    <span class="drop-icon">📊</span>
+    <div style="font-size:1.1rem;font-weight:700;margin-bottom:5px;">اسحب ملف الـ PowerPoint هنا</div>
+    <div style="color:var(--muted);font-size:.83rem;margin-bottom:16px;">مسموح بملفات .pptx فقط</div>
+    <button class="btn btn-purple" onclick="event.stopPropagation();document.getElementById('pptxInput').click()">+ اختر ملف</button>
+    <input type="file" id="pptxInput" accept=".pptx" style="display:none">
+  </div>
+
+  <div id="pptxPreview" style="display:none;margin-top:20px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+      <span style="font-size:.85rem;font-weight:900;color:var(--muted)">الملف المختار: <span id="pptxFileName" style="color:var(--text);font-family:var(--font-mono);"></span></span>
+    </div>
+    
+    <div style="background:rgba(166,108,255,.06);border:1px solid rgba(166,108,255,.2);border-radius:10px;padding:14px;margin-bottom:16px;">
+      <div style="font-weight:900;color:var(--purple);margin-bottom:4px;">💡 معلومة سريعة</div>
+      <div style="font-size:.8rem;color:var(--muted);line-height:1.7;">
+        التحويل بيتم بالكامل داخل متصفحك للحفاظ على الخصوصية. قد لا تظهر بعض الأشكال المعقدة أو الحركات بنفس الدقة، ولكن المحتوى الأساسي سيتم تحويله بنجاح.
+      </div>
+    </div>
+
+    <!-- Hidden container for pptx rendering -->
+    <div id="pptxRenderContainer" style="width:900px;background:white;position:absolute;left:-9999px;color:black;"></div>
+
+    <div class="action-row">
+      <button class="btn btn-ghost" id="clearPptxBtn">🗑️ مسح</button>
+      <button class="btn btn-purple" id="convertPptxBtn">⚡ تحويل إلى PDF</button>
+    </div>
+    <div class="prog-wrap" id="pptxProg">
+      <div class="prog-label" id="pptxProgLbl" style="color:var(--purple);">جاري معالجة الملف... (قد يستغرق بعض الوقت)</div>
+      <div class="prog-bg"><div class="prog-fill" id="pptxProgFill" style="background:linear-gradient(90deg,var(--purple),var(--pink));width:0%;"></div></div>
+    </div>
+  </div>
+  <div class="signature"><div class="sig-line1">✦ AshrafTools ✦ بواسطة البشمهندس</div><div class="sig-line2"><span id="sig9"></span></div></div>
+</div>
+
+
+<!-- ══ PAGE 2: JAVA MULTI-FILE ══ -->
+<div id="page-code" class="page">
+  <div class="page-header">
+    <div class="page-icon green">☕</div>
+    <div>
+      <div class="page-title">Java Project Editor</div>
+      <div class="page-sub">اكتب ملفات متعددة، اتفرج بألوان، ونزّلهم كـ ZIP جاهز للـ IDE</div>
+    </div>
+  </div>
+
+  <!-- File Tabs -->
+  <div style="display:flex;align-items:flex-end;gap:8px;flex-wrap:wrap;margin-bottom:0">
+    <div style="flex:1;min-width:200px;">
+      <div class="file-tabs-bar" id="fileTabsBar">
+        <!-- tabs injected here -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Editor -->
+  <div class="editor-area">
+    <div class="editor-topbar">
+      <div class="mac-dot r"></div><div class="mac-dot y"></div><div class="mac-dot g"></div>
+      <div style="margin-right:auto;display:flex;align-items:center;gap:8px;">
+        <input type="text" id="activeFileName" value="Main"
+          style="background:transparent;border:none;color:var(--green);font-family:var(--font-mono);font-size:.85rem;font-weight:700;outline:none;width:120px;"
+          oninput="renameActiveFile()">
+        <span class="ext-pill">.java</span>
+      </div>
+      <span class="lang-pill">Java</span>
+      <span style="color:var(--muted);font-size:.75rem;margin-right:8px" id="charCount">0 حرف</span>
+      <button class="btn btn-ghost btn-sm" id="copyCodeBtn">📋</button>
+    </div>
+    <textarea class="code-editor" id="codeEditor" spellcheck="false"
+placeholder="// 👋 أهلاً يا بشمهندس!
+//
+// 😩 المشكلة اللي بتحصل معاك:
+//    لما يكون عندك Assignment فيه Main + كلاسات تانية
+//    بتبقى مش عارف تجمعهم في مكان واحد وتسلمهم!
+//
+// ✅ الحل هنا:
+//    ① خد الكود بتاع Main → Ctrl+A ثم Ctrl+C
+//    ② Ctrl+V هنا وابدأ الشغل
+//
+//    ③ عايز كلاس تاني؟ اضغط &quot;+ ملف جديد&quot; فوق
+//    ④ لما تخلص → &quot;📦 تنزيل كـ ZIP&quot; وسلّمه!
+//
+// ابدأ اكتب وهيتمسح الكلام ده تلقائي 👇"></textarea>
+    <div class="preview-box" id="codePreview"></div>
+  </div>
+
+  <!-- Toolbar -->
+  <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;align-items:center">
+    <button class="btn btn-ghost btn-sm" onclick="addNewFile()">📄 ملف جديد</button>
+    <button class="btn btn-ghost btn-sm" id="togglePreviewBtn">👁️ ألوان الكود</button>
+    <button class="btn btn-ghost btn-sm" id="clearCodeBtn">🗑️ مسح</button>
+    <div style="margin-right:auto;display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn btn-green btn-sm" id="downloadJavaBtn">⬇️ تنزيل .java</button>
+      <button class="btn btn-primary" id="downloadZipBtn">📦 تنزيل كـ ZIP</button>
+    </div>
+  </div>
+
+  <!-- Snippets -->
+  <div class="card" style="margin-top:20px">
+    <div class="card-title">⚡ Code Snippets — اضغط لإضافة الكود فوراً</div>
+    <div class="snippets-grid" id="snippetsGrid"></div>
+  </div>
+
+  <!-- How to upload -->
+  <div class="card" style="background:rgba(34,211,122,.04);border-color:rgba(34,211,122,.18)">
+    <strong style="color:var(--green);display:block;margin-bottom:8px;">📌 إزاي ترفع المشروع؟</strong>
+    <div style="font-size:.83rem;color:var(--muted);line-height:2">
+      ١. اضغط <strong style="color:var(--text)">📦 تنزيل ZIP</strong> — هينزل ملف واحد فيه كل الكلاسات<br>
+      ٢. افتح <strong style="color:var(--text)">IntelliJ / Eclipse / VS Code</strong><br>
+      ٣. <strong style="color:var(--text)">File → Open</strong> واختار الـ ZIP أو استخرجه أولاً<br>
+      ٤. <strong style="color:var(--green)">Run ▶ وخلاص! ✅</strong>
+    </div>
+  </div>
+
+  <div class="signature"><div class="sig-line1">✦ AshrafTools ✦ بواسطة البشمهندس</div><div class="sig-line2"><span id="sig2"></span></div></div>
+</div>
+
+<!-- ══ PAGE 3: CLASS DIAGRAM ══ -->
+<div id="page-diagram" class="page">
+  <div class="page-header">
+    <div class="page-icon purple">📊</div>
+    <div>
+      <div class="page-title">Class Diagram Builder</div>
+      <div class="page-sub">ابني خريطة الكلاسات، زوّد كلاسات، وحفّظها PDF</div>
+    </div>
+  </div>
+
+  <div class="diagram-layout">
+    <div>
+      <div class="panel">
+        <div class="card-title">الكلاسات</div>
+        <div class="class-tabs-row" id="classTabs"></div>
+        <div style="margin-bottom:12px">
+          <label class="flabel">اسم الكلاس</label>
+          <input type="text" class="finput" id="clsName" placeholder="مثلاً: Student" oninput="onClsNameChange()">
+        </div>
+        <div class="sec-label">Attributes (متغيرات)</div>
+        <div class="attr-list" id="attrList"></div>
+        <div class="add-row">
+          <select class="vis-sel" id="attrVis"><option>+</option><option>-</option><option>#</option></select>
+          <input class="attr-in" id="attrIn" placeholder="String name">
+          <button class="btn btn-sm btn-purple" onclick="addAttr()">+</button>
+        </div>
+        <div class="sec-label">Methods (دوال)</div>
+        <div class="attr-list" id="methodList"></div>
+        <div class="add-row">
+          <select class="vis-sel" id="methVis"><option>+</option><option>-</option><option>#</option></select>
+          <input class="attr-in" id="methIn" placeholder="void study()">
+          <button class="btn btn-sm btn-purple" onclick="addMethod()">+</button>
+        </div>
+        <div id="relPanel" style="display:none;margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
+          <div class="sec-label">علاقة بين كلاسين</div>
+          <div style="display:flex;gap:6px;margin-bottom:7px;flex-wrap:wrap;align-items:center">
+            <select class="fselect" id="relFrom" style="flex:1;font-size:.78rem;padding:6px 8px;"></select>
+            <span style="color:var(--muted);font-size:.8rem;flex-shrink:0">→</span>
+            <select class="fselect" id="relTo" style="flex:1;font-size:.78rem;padding:6px 8px;"></select>
+          </div>
+          <select class="fselect" id="relType" style="margin-bottom:7px;" onchange="drawDiagram()">
+            <option value="none">بدون علاقة</option>
+            <option value="association">Association ─────</option>
+            <option value="extends">Inheritance ◁─────</option>
+            <option value="implements">Implements ◁- - -</option>
+            <option value="aggregation">Aggregation ◇─────</option>
+            <option value="composition">Composition ◆─────</option>
+            <option value="dependency">Dependency - - - →</option>
+          </select>
+          <input type="text" class="finput" id="relLabel" placeholder="تسمية العلاقة (اختياري)" oninput="drawDiagram()">
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
+        <button class="btn btn-purple" onclick="drawDiagram()">🔄 تحديث</button>
+        <button class="btn btn-orange" onclick="saveDiagramPDF()">💾 حفظ PDF</button>
+      </div>
+    </div>
+    <div class="canvas-wrap">
+      <canvas id="diagCanvas"></canvas>
+      <div class="canvas-top">
+        <button class="btn btn-ghost btn-sm" onclick="drawDiagram()">🔄</button>
+      </div>
+    </div>
+  </div>
+  <div class="signature"><div class="sig-line1">✦ AshrafTools ✦ بواسطة البشمهندس</div><div class="sig-line2"><span id="sig3"></span></div></div>
+</div>
+
+<!-- ══ PAGE 4: FULL PROJECT ══ -->
+<div id="page-project" class="page">
+  <div class="page-header">
+    <div class="page-icon orange">🚀</div>
+    <div>
+      <div class="page-title">مشروع كامل → ZIP</div>
+      <div class="page-sub">اكتب كود + صمّم Diagram + ارفع صور — وصدّر كل حاجة في ZIP واحد</div>
+    </div>
+  </div>
+
+  <!-- Step 1: Java Files -->
+  <div class="card">
+    <div class="card-title">① ملفات Java</div>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap">
+      <span style="color:var(--muted);font-size:.85rem">الملفات اللي هتتضاف في الـ ZIP:</span>
+      <span id="projFileCount" style="background:rgba(34,211,122,.12);color:var(--green);
+        padding:3px 10px;border-radius:6px;font-size:.8rem;font-weight:700;">0 ملف</span>
+      <button class="btn btn-ghost btn-sm" onclick="switchTab('code',document.querySelectorAll('.tab-btn')[1])">✏️ تعديل الكود</button>
+    </div>
+    <div id="projFilesList" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
+  </div>
+
+  <!-- Step 2: Class Diagram -->
+  <div class="card">
+    <div class="card-title">② Class Diagram</div>
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:.88rem;">
+        <input type="checkbox" id="inclDiagram" checked
+          style="width:16px;height:16px;accent-color:var(--purple);cursor:pointer;">
+        <span>ضيف الـ Diagram كـ PNG في الـ ZIP</span>
+      </label>
+      <button class="btn btn-ghost btn-sm" onclick="switchTab('diagram',document.querySelectorAll('.tab-btn')[2])">✏️ تعديل الـ Diagram</button>
+    </div>
+    <!-- mini preview -->
+    <canvas id="projDiagPreview" style="width:100%;max-height:220px;border-radius:10px;
+      border:1px solid var(--border);background:var(--surface2);display:block;"></canvas>
+  </div>
+
+  <!-- Step 3: Images -->
+  <div class="card">
+    <div class="card-title">③ الصور (اختياري)</div>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:.88rem;">
+        <input type="checkbox" id="inclImages" checked
+          style="width:16px;height:16px;accent-color:var(--blue);cursor:pointer;">
+        <span>ضيف الصور في الـ ZIP</span>
+      </label>
+      <span id="projImgCount" style="color:var(--muted);font-size:.82rem">0 صورة</span>
+      <button class="btn btn-ghost btn-sm" onclick="switchTab('img',document.querySelectorAll('.tab-btn')[0])">✏️ إضافة صور</button>
+    </div>
+    <div id="projImgThumb" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
+  </div>
+
+  <!-- Step 4: Project Name + Export -->
+  <div class="card" style="background:rgba(79,142,247,.04);border-color:rgba(79,142,247,.25);">
+    <div class="card-title">④ تصدير المشروع</div>
+    <div style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-bottom:18px;">
+      <div style="flex:1;min-width:200px;">
+        <label class="flabel">اسم المشروع / ZIP</label>
+        <input type="text" class="finput" id="projName" value="AshrafProject" placeholder="اسم المشروع">
+      </div>
+    </div>
+    <!-- summary -->
+    <div id="projSummary" style="background:var(--surface2);border:1px solid var(--border);
+      border-radius:10px;padding:14px 18px;margin-bottom:16px;font-size:.85rem;line-height:2;color:var(--muted);">
+    </div>
+    <button class="btn btn-primary" id="exportZipBtn" style="font-size:1rem;padding:14px 32px;
+      box-shadow:0 0 30px rgba(79,142,247,.4);">
+      📦 تصدير كـ ZIP كامل
+    </button>
+    <div class="prog-wrap" id="projProg">
+      <div class="prog-label" id="projProgLbl">جاري التجميع...</div>
+      <div class="prog-bg"><div class="prog-fill" id="projProgFill"></div></div>
+    </div>
+  </div>
+
+  <div class="signature"><div class="sig-line1">✦ AshrafTools ✦ بواسطة البشمهندس</div><div class="sig-line2"><span id="sig4"></span></div></div>
+</div>
+
+<!-- ══ PAGE 5: GUIDE ══ -->
+<div id="page-guide" class="page">
+  <div class="page-header">
+    <div class="page-icon orange">📖</div>
+    <div>
+      <div class="page-title">دليل الاستخدام</div>
+      <div class="page-sub">كل حاجة محتاج تعرفها عن AshrafTools في مكان واحد</div>
+    </div>
+  </div>
+
+  <!-- Quick Nav -->
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:28px;">
+    <a href="#g1" style="text-decoration:none"><span class="btn btn-ghost btn-sm">🖼️ صور → PDF</span></a>
+    <a href="#g2" style="text-decoration:none"><span class="btn btn-ghost btn-sm">☕ Java Editor</span></a>
+    <a href="#g3" style="text-decoration:none"><span class="btn btn-ghost btn-sm">📊 Class Diagram</span></a>
+    <a href="#g4" style="text-decoration:none"><span class="btn btn-ghost btn-sm">🚀 مشروع ZIP</span></a>
+  </div>
+
+  <!-- ═══ TOOL 1 ═══ -->
+  <div id="g1" class="card" style="border-right:4px solid var(--blue);margin-bottom:24px;">
+    <div style="display:flex;align-items:center;gap:14px;margin-bottom:20px;">
+      <div class="page-icon blue" style="width:52px;height:52px;font-size:1.6rem;flex-shrink:0;">🖼️</div>
+      <div>
+        <div style="font-size:1.2rem;font-weight:900;">أداة صور → PDF</div>
+        <div style="color:var(--muted);font-size:.85rem;">حوّل صورك لـ PDF احترافي في ثوانٍ</div>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
+      <div style="background:rgba(34,211,122,.06);border:1px solid rgba(34,211,122,.2);border-radius:10px;padding:14px;">
+        <div style="font-weight:900;color:var(--green);margin-bottom:8px;">✅ الاستخدام</div>
+        <div style="font-size:.84rem;color:var(--muted);line-height:2;">
+          • طلبات ترقيم الصفحات في المشاريع<br>
+          • تحويل صور الشيتات لملف PDF واحد<br>
+          • تجميع صور الـ Assignment في ملف
+        </div>
+      </div>
+      <div style="background:rgba(79,142,247,.06);border:1px solid rgba(79,142,247,.2);border-radius:10px;padding:14px;">
+        <div style="font-weight:900;color:var(--blue);margin-bottom:8px;">💡 الفايدة</div>
+        <div style="font-size:.84rem;color:var(--muted);line-height:2;">
+          • بدل ما تستخدم مواقع تانية بيجي إعلانات<br>
+          • بيشتغل من غير نت بعد ما يتفتح<br>
+          • مفيش حد بيشوف صورك — كل حاجة على جهازك
+        </div>
+      </div>
+    </div>
+
+    <div style="background:var(--surface2);border-radius:10px;padding:16px;">
+      <div style="font-weight:900;margin-bottom:12px;font-size:.85rem;text-transform:uppercase;letter-spacing:1px;color:var(--muted);">🪜 خطوات الاستخدام</div>
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        <div style="display:flex;gap:12px;align-items:flex-start;">
+          <span style="background:var(--blue);color:white;width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font-size:.75rem;font-weight:900;flex-shrink:0;">١</span>
+          <div style="font-size:.85rem;line-height:1.7;">اسحب الصور جوا المربع أو اضغط <strong style="color:var(--blue)">"+ اختر صور"</strong> — بيقبل PNG وJPG وWEBP وGIF</div>
+        </div>
+        <div style="display:flex;gap:12px;align-items:flex-start;">
+          <span style="background:var(--blue);color:white;width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font-size:.75rem;font-weight:900;flex-shrink:0;">٢</span>
+          <div style="font-size:.85rem;line-height:1.7;">رتّب الصور بالسحب — الرقم اللي على كل صورة هو ترتيبها في الـ PDF</div>
+        </div>
+        <div style="display:flex;gap:12px;align-items:flex-start;">
+          <span style="background:var(--blue);color:white;width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font-size:.75rem;font-weight:900;flex-shrink:0;">٣</span>
+          <div style="font-size:.85rem;line-height:1.7;">اختار <strong>حجم الصفحة</strong> (A4 للطباعة العادية) و<strong>الاتجاه</strong> (تلقائي بيختار الأنسب لكل صورة)</div>
+        </div>
+        <div style="display:flex;gap:12px;align-items:flex-start;">
+          <span style="background:var(--blue);color:white;width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font-size:.75rem;font-weight:900;flex-shrink:0;">٤</span>
+          <div style="font-size:.85rem;line-height:1.7;">غيّر اسم الملف واضغط <strong style="color:var(--blue)">"⚡ تحويل إلى PDF"</strong> — هينزل تلقائي</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="background:rgba(245,166,35,.06);border:1px solid rgba(245,166,35,.2);border-radius:8px;padding:12px;margin-top:14px;font-size:.83rem;">
+      <strong style="color:var(--orange);">💡 نصيحة:</strong> <span style="color:var(--muted);">اختار "مناسب للصورة" في حجم الصفحة لو عايز كل صفحة بحجم صورتها بالظبط</span>
+    </div>
+  </div>
+
+  <!-- ═══ TOOL 2 ═══ -->
+  <div id="g2" class="card" style="border-right:4px solid var(--green);margin-bottom:24px;">
+    <div style="display:flex;align-items:center;gap:14px;margin-bottom:20px;">
+      <div class="page-icon green" style="width:52px;height:52px;font-size:1.6rem;flex-shrink:0;">☕</div>
+      <div>
+        <div style="font-size:1.2rem;font-weight:900;">Java Project Editor</div>
+        <div style="color:var(--muted);font-size:.85rem;">اكتب كلاسات متعددة وصدّرهم ZIP جاهز للـ IDE</div>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
+      <div style="background:rgba(34,211,122,.06);border:1px solid rgba(34,211,122,.2);border-radius:10px;padding:14px;">
+        <div style="font-weight:900;color:var(--green);margin-bottom:8px;">✅ الاستخدام</div>
+        <div style="font-size:.84rem;color:var(--muted);line-height:2;">
+          • كتابة مشاريع OOP متعددة الكلاسات<br>
+          • مراجعة الكود قبل ما تفتح الـ IDE<br>
+          • تجميع ملفات المشروع بسرعة
+        </div>
+      </div>
+      <div style="background:rgba(34,211,122,.06);border:1px solid rgba(34,211,122,.2);border-radius:10px;padding:14px;">
+        <div style="font-weight:900;color:var(--green);margin-bottom:8px;">💡 الفايدة</div>
+        <div style="font-size:.84rem;color:var(--muted);line-height:2;">
+          • ZIP جاهز تفتحه على IntelliJ مباشرة<br>
+          • Snippets جاهزة توفر وقت الكتابة<br>
+          • ألوان Syntax تساعدك تراجع الكود
+        </div>
+      </div>
+    </div>
+
+    <div style="background:var(--surface2);border-radius:10px;padding:16px;margin-bottom:14px;">
+      <div style="font-weight:900;margin-bottom:12px;font-size:.85rem;text-transform:uppercase;letter-spacing:1px;color:var(--muted);">🪜 خطوات الاستخدام</div>
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        <div style="display:flex;gap:12px;align-items:flex-start;">
+          <span style="background:var(--green);color:#050d0a;width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font-size:.75rem;font-weight:900;flex-shrink:0;">١</span>
+          <div style="font-size:.85rem;line-height:1.7;">في الـ tab الأولاني <strong style="color:var(--green)">Main.java</strong> — ابدأ اكتب الكود. Tab بيعمل 4 مسافات تلقائي</div>
+        </div>
+        <div style="display:flex;gap:12px;align-items:flex-start;">
+          <span style="background:var(--green);color:#050d0a;width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font-size:.75rem;font-weight:900;flex-shrink:0;">٢</span>
+          <div style="font-size:.85rem;line-height:1.7;">اضغط <strong style="color:var(--green)">"+ ملف جديد"</strong> — هيسألك اسم الكلاس وهيعمل template تلقائي باسمه</div>
+        </div>
+        <div style="display:flex;gap:12px;align-items:flex-start;">
+          <span style="background:var(--green);color:#050d0a;width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font-size:.75rem;font-weight:900;flex-shrink:0;">٣</span>
+          <div style="font-size:.85rem;line-height:1.7;">استخدم <strong style="color:var(--green)">⚡ Snippets</strong> — اضغط على أي snippet زي ArrayList أو Try-Catch وهيتضاف في الـ editor فوراً</div>
+        </div>
+        <div style="display:flex;gap:12px;align-items:flex-start;">
+          <span style="background:var(--green);color:#050d0a;width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font-size:.75rem;font-weight:900;flex-shrink:0;">٤</span>
+          <div style="font-size:.85rem;line-height:1.7;">اضغط <strong style="color:var(--blue)">"📦 تنزيل كـ ZIP"</strong> — هينزل ملف فيه كل الكلاسات جوا فولدر src</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="background:rgba(166,108,255,.06);border:1px solid rgba(166,108,255,.2);border-radius:8px;padding:12px;font-size:.83rem;">
+      <strong style="color:var(--purple);">📌 الـ Snippets الموجودة:</strong>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;">
+        <span style="background:var(--surface2);padding:3px 10px;border-radius:5px;font-size:.78rem;font-family:var(--font-mono);">Hello World</span>
+        <span style="background:var(--surface2);padding:3px 10px;border-radius:5px;font-size:.78rem;font-family:var(--font-mono);">For Loop</span>
+        <span style="background:var(--surface2);padding:3px 10px;border-radius:5px;font-size:.78rem;font-family:var(--font-mono);">ArrayList</span>
+        <span style="background:var(--surface2);padding:3px 10px;border-radius:5px;font-size:.78rem;font-family:var(--font-mono);">Scanner</span>
+        <span style="background:var(--surface2);padding:3px 10px;border-radius:5px;font-size:.78rem;font-family:var(--font-mono);">Class Template</span>
+        <span style="background:var(--surface2);padding:3px 10px;border-radius:5px;font-size:.78rem;font-family:var(--font-mono);">Try-Catch</span>
+        <span style="background:var(--surface2);padding:3px 10px;border-radius:5px;font-size:.78rem;font-family:var(--font-mono);">Interface</span>
+        <span style="background:var(--surface2);padding:3px 10px;border-radius:5px;font-size:.78rem;font-family:var(--font-mono);">Bubble Sort</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ TOOL 3 ═══ -->
+  <div id="g3" class="card" style="border-right:4px solid var(--purple);margin-bottom:24px;">
+    <div style="display:flex;align-items:center;gap:14px;margin-bottom:20px;">
+      <div class="page-icon purple" style="width:52px;height:52px;font-size:1.6rem;flex-shrink:0;">📊</div>
+      <div>
+        <div style="font-size:1.2rem;font-weight:900;">Class Diagram Builder</div>
+        <div style="color:var(--muted);font-size:.85rem;">ارسم خريطة الكلاسات وعلاقاتها واحفظها PDF</div>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
+      <div style="background:rgba(166,108,255,.06);border:1px solid rgba(166,108,255,.2);border-radius:10px;padding:14px;">
+        <div style="font-weight:900;color:var(--purple);margin-bottom:8px;">✅ الاستخدام</div>
+        <div style="font-size:.84rem;color:var(--muted);line-height:2;">
+          • تصميم مشاريع OOP قبل الكتابة<br>
+          • شرح العلاقات بين الكلاسات<br>
+          • تسليم الـ Design مع المشروع
+        </div>
+      </div>
+      <div style="background:rgba(166,108,255,.06);border:1px solid rgba(166,108,255,.2);border-radius:10px;padding:14px;">
+        <div style="font-weight:900;color:var(--purple);margin-bottom:8px;">💡 الفايدة</div>
+        <div style="font-size:.84rem;color:var(--muted);line-height:2;">
+          • بديل سريع لـ draw.io وLucidchart<br>
+          • بيحفظ PDF جاهز للتسليم<br>
+          • كل كلاس بلون مختلف عشان يتميز
+        </div>
+      </div>
+    </div>
+
+    <div style="background:var(--surface2);border-radius:10px;padding:16px;margin-bottom:14px;">
+      <div style="font-weight:900;margin-bottom:12px;font-size:.85rem;text-transform:uppercase;letter-spacing:1px;color:var(--muted);">🪜 خطوات الاستخدام</div>
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        <div style="display:flex;gap:12px;align-items:flex-start;">
+          <span style="background:var(--purple);color:white;width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font-size:.75rem;font-weight:900;flex-shrink:0;">١</span>
+          <div style="font-size:.85rem;line-height:1.7;">اكتب اسم الكلاس الأولاني في خانة <strong style="color:var(--purple)">"اسم الكلاس"</strong></div>
+        </div>
+        <div style="display:flex;gap:12px;align-items:flex-start;">
+          <span style="background:var(--purple);color:white;width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font-size:.75rem;font-weight:900;flex-shrink:0;">٢</span>
+          <div style="font-size:.85rem;line-height:1.7;">ضيف <strong>Attributes</strong> — اختار الـ visibility (+/-/#) واكتب اسم المتغير زي <code style="background:var(--surface3);padding:1px 6px;border-radius:4px;font-family:var(--font-mono);">String name</code> واضغط Enter</div>
+        </div>
+        <div style="display:flex;gap:12px;align-items:flex-start;">
+          <span style="background:var(--purple);color:white;width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font-size:.75rem;font-weight:900;flex-shrink:0;">٣</span>
+          <div style="font-size:.85rem;line-height:1.7;">ضيف <strong>Methods</strong> بنفس الطريقة زي <code style="background:var(--surface3);padding:1px 6px;border-radius:4px;font-family:var(--font-mono);">void study()</code></div>
+        </div>
+        <div style="display:flex;gap:12px;align-items:flex-start;">
+          <span style="background:var(--purple);color:white;width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font-size:.75rem;font-weight:900;flex-shrink:0;">٤</span>
+          <div style="font-size:.85rem;line-height:1.7;">اضغط <strong style="color:var(--green)">"+ كلاس"</strong> لإضافة كلاس جديد — هيسألك الاسم</div>
+        </div>
+        <div style="display:flex;gap:12px;align-items:flex-start;">
+          <span style="background:var(--purple);color:white;width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font-size:.75rem;font-weight:900;flex-shrink:0;">٥</span>
+          <div style="font-size:.85rem;line-height:1.7;">في قسم <strong>"علاقة بين كلاسين"</strong> — اختار FROM وTO ونوع العلاقة واضغط تحديث</div>
+        </div>
+        <div style="display:flex;gap:12px;align-items:flex-start;">
+          <span style="background:var(--purple);color:white;width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font-size:.75rem;font-weight:900;flex-shrink:0;">٦</span>
+          <div style="font-size:.85rem;line-height:1.7;">اضغط <strong style="color:var(--orange)">"💾 حفظ PDF"</strong> لتنزيل الـ Diagram</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Relation types -->
+    <div style="background:var(--surface2);border-radius:10px;padding:16px;">
+      <div style="font-weight:900;margin-bottom:12px;font-size:.85rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;">🔗 أنواع العلاقات</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+        <div style="font-size:.82rem;padding:8px;background:var(--surface3);border-radius:7px;">
+          <strong style="color:var(--blue);">Association</strong> ─────<br>
+          <span style="color:var(--muted);">علاقة عادية بين كلاسين</span>
+        </div>
+        <div style="font-size:.82rem;padding:8px;background:var(--surface3);border-radius:7px;">
+          <strong style="color:var(--green);">Inheritance</strong> ◁─────<br>
+          <span style="color:var(--muted);">كلاس بيرث من كلاس تاني</span>
+        </div>
+        <div style="font-size:.82rem;padding:8px;background:var(--surface3);border-radius:7px;">
+          <strong style="color:var(--purple);">Implements</strong> ◁- - -<br>
+          <span style="color:var(--muted);">بينفذ Interface</span>
+        </div>
+        <div style="font-size:.82rem;padding:8px;background:var(--surface3);border-radius:7px;">
+          <strong style="color:var(--orange);">Aggregation</strong> ◇─────<br>
+          <span style="color:var(--muted);">has-a علاقة ضعيفة</span>
+        </div>
+        <div style="font-size:.82rem;padding:8px;background:var(--surface3);border-radius:7px;">
+          <strong style="color:var(--red);">Composition</strong> ◆─────<br>
+          <span style="color:var(--muted);">has-a علاقة قوية</span>
+        </div>
+        <div style="font-size:.82rem;padding:8px;background:var(--surface3);border-radius:7px;">
+          <strong style="color:var(--cyan);">Dependency</strong> - - - →<br>
+          <span style="color:var(--muted);">uses علاقة مؤقتة</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ TOOL 4 ═══ -->
+  <div id="g4" class="card" style="border-right:4px solid var(--orange);margin-bottom:24px;">
+    <div style="display:flex;align-items:center;gap:14px;margin-bottom:20px;">
+      <div class="page-icon orange" style="width:52px;height:52px;font-size:1.6rem;flex-shrink:0;">🚀</div>
+      <div>
+        <div style="font-size:1.2rem;font-weight:900;">مشروع كامل → ZIP</div>
+        <div style="color:var(--muted);font-size:.85rem;">صدّر كل حاجة في ملف ZIP واحد</div>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
+      <div style="background:rgba(245,166,35,.06);border:1px solid rgba(245,166,35,.2);border-radius:10px;padding:14px;">
+        <div style="font-weight:900;color:var(--orange);margin-bottom:8px;">✅ الاستخدام</div>
+        <div style="font-size:.84rem;color:var(--muted);line-height:2;">
+          • تسليم المشروع كاملاً في ملف واحد<br>
+          • رفع المشروع على IDE بدون تعب<br>
+          • حفظ نسخة من الشغل كله
+        </div>
+      </div>
+      <div style="background:rgba(245,166,35,.06);border:1px solid rgba(245,166,35,.2);border-radius:10px;padding:14px;">
+        <div style="font-weight:900;color:var(--orange);margin-bottom:8px;">📦 محتوى الـ ZIP</div>
+        <div style="font-size:.84rem;color:var(--muted);line-height:2;">
+          📁 src/ ← ملفات Java<br>
+          🖼️ ClassDiagram.png<br>
+          🖼️ images/ ← لو ضفت صور<br>
+          📄 README.md
+        </div>
+      </div>
+    </div>
+
+    <div style="background:var(--surface2);border-radius:10px;padding:16px;">
+      <div style="font-weight:900;margin-bottom:12px;font-size:.85rem;text-transform:uppercase;letter-spacing:1px;color:var(--muted);">🪜 خطوات الاستخدام</div>
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        <div style="display:flex;gap:12px;align-items:flex-start;">
+          <span style="background:var(--orange);color:#0a0600;width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font-size:.75rem;font-weight:900;flex-shrink:0;">١</span>
+          <div style="font-size:.85rem;line-height:1.7;">تأكد إنك كتبت الكود في Java Editor وعملت الـ Diagram</div>
+        </div>
+        <div style="display:flex;gap:12px;align-items:flex-start;">
+          <span style="background:var(--orange);color:#0a0600;width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font-size:.75rem;font-weight:900;flex-shrink:0;">٢</span>
+          <div style="font-size:.85rem;line-height:1.7;">افتح صفحة <strong>"🚀 مشروع كامل"</strong> — هتلاقي ملخص لكل حاجة عندك</div>
+        </div>
+        <div style="display:flex;gap:12px;align-items:flex-start;">
+          <span style="background:var(--orange);color:#0a0600;width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font-size:.75rem;font-weight:900;flex-shrink:0;">٣</span>
+          <div style="font-size:.85rem;line-height:1.7;">اختار إيه اللي تحطه في الـ ZIP — ✅ Diagram و✅ صور</div>
+        </div>
+        <div style="display:flex;gap:12px;align-items:flex-start;">
+          <span style="background:var(--orange);color:#0a0600;width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font-size:.75rem;font-weight:900;flex-shrink:0;">٤</span>
+          <div style="font-size:.85rem;line-height:1.7;">اكتب اسم المشروع واضغط <strong style="color:var(--blue)">"📦 تصدير كـ ZIP كامل"</strong></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tips -->
+  <div class="card" style="background:rgba(79,142,247,.04);border-color:rgba(79,142,247,.25);margin-bottom:24px;">
+    <div style="font-size:1rem;font-weight:900;margin-bottom:16px;">⚡ نصايح سريعة</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;">
+      <div style="background:var(--surface2);border-radius:9px;padding:12px;font-size:.83rem;line-height:1.7;">
+        <div style="font-weight:900;color:var(--blue);margin-bottom:4px;">⌨️ اختصارات الـ Editor</div>
+        <div style="color:var(--muted);">Tab → 4 مسافات<br>Enter في خانة الـ Attribute → يضيفه تلقائي</div>
+      </div>
+      <div style="background:var(--surface2);border-radius:9px;padding:12px;font-size:.83rem;line-height:1.7;">
+        <div style="font-weight:900;color:var(--green);margin-bottom:4px;">📱 شغال على الموبايل</div>
+        <div style="color:var(--muted);">الموقع Responsive — يشتغل من أي جهاز أو موبايل</div>
+      </div>
+      <div style="background:var(--surface2);border-radius:9px;padding:12px;font-size:.83rem;line-height:1.7;">
+        <div style="font-weight:900;color:var(--orange);margin-bottom:4px;">💾 الحفظ التلقائي</div>
+        <div style="color:var(--muted);">الكود بيتحفظ في الـ tab — لو بدّلت تاب وراجعت هتلاقيه موجود</div>
+      </div>
+      <div style="background:var(--surface2);border-radius:9px;padding:12px;font-size:.83rem;line-height:1.7;">
+        <div style="font-weight:900;color:var(--purple);margin-bottom:4px;">🎨 ألوان الكود</div>
+        <div style="color:var(--muted);">اضغط "👁️ ألوان الكود" لتفعيل Syntax Highlighting وتراجع كودك بسهولة</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="signature"><div class="sig-line1">✦ AshrafTools ✦ بواسطة البشمهندس</div><div class="sig-line2"><span id="sig5"></span></div></div>
+</div>
+
+<!-- ══ PAGE 6: KEYBOARD SHORTCUTS ══ -->
+<div id="page-keys" class="page">
+  <div class="page-header">
+    <div class="page-icon" style="background:rgba(0,229,212,.1);border:1px solid rgba(0,229,212,.3);width:48px;height:48px;border-radius:12px;display:grid;place-items:center;font-size:1.5rem;flex-shrink:0;">⌨️</div>
+    <div>
+      <div class="page-title">اختصارات الكيبورد</div>
+      <div class="page-sub">كل اختصارات IntelliJ وWindows في مكان واحد</div>
+    </div>
+  </div>
+
+  
+
+  <!-- Quick Nav -->
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px;">
+    <a href="#ks-win" style="text-decoration:none"><span class="btn btn-ghost btn-sm">🪟 Windows</span></a>
+    <a href="#ks-ij-nav" style="text-decoration:none"><span class="btn btn-ghost btn-sm" style="color:var(--purple);">🔍 IntelliJ تنقل</span></a>
+    <a href="#ks-ij-edit" style="text-decoration:none"><span class="btn btn-ghost btn-sm" style="color:var(--purple);">✏️ IntelliJ تعديل</span></a>
+    <a href="#ks-ij-run" style="text-decoration:none"><span class="btn btn-ghost btn-sm" style="color:var(--green);">▶️ IntelliJ تشغيل</span></a>
+    <a href="#ks-live" style="text-decoration:none"><span class="btn btn-ghost btn-sm" style="color:var(--orange);">⚡ Live Templates</span></a>
+  </div>
+
+  <!-- ══ WINDOWS ══ -->
+  <div id="ks-win" class="card" style="padding:12px;margin-bottom:16px;border-right:3px solid var(--cyan);">
+    <div class="ks-head">🪟 Windows — اختصارات عامة</div>
+    <div class="sk-grid" id="ks-win-grid"></div>
+  </div>
+
+  <!-- ══ INTELLIJ NAVIGATE ══ -->
+  <div id="ks-ij-nav" class="card" style="padding:12px;margin-bottom:16px;border-right:3px solid var(--purple);">
+    <div class="ks-head">🔍 IntelliJ IDEA — البحث والتنقل</div>
+    <div class="sk-grid" id="ks-nav-grid"></div>
+  </div>
+
+  <!-- ══ INTELLIJ EDIT ══ -->
+  <div id="ks-ij-edit" class="card" style="padding:12px;margin-bottom:16px;border-right:3px solid var(--blue);">
+    <div class="ks-head">✏️ IntelliJ IDEA — تعديل الكود</div>
+    <div class="sk-grid" id="ks-edit-grid"></div>
+  </div>
+
+  <!-- ══ INTELLIJ RUN/DEBUG ══ -->
+  <div id="ks-ij-run" class="card" style="padding:12px;margin-bottom:16px;border-right:3px solid var(--green);">
+    <div class="ks-head">▶️ IntelliJ IDEA — تشغيل وDebug</div>
+    <div class="sk-grid" id="ks-run-grid"></div>
+  </div>
+
+  <!-- ══ LIVE TEMPLATES ══ -->
+  <div id="ks-live" class="card" style="padding:12px;margin-bottom:16px;border-right:3px solid var(--orange);">
+    <div class="ks-head">⚡ Live Templates — اكتبها وضغط Tab</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px;padding:4px;" id="ks-live-grid"></div>
+  </div>
+
+  <div class="signature"><div class="sig-line1">✦ AshrafTools ✦ بواسطة البشمهندس</div><div class="sig-line2"><span id="sig6"></span></div></div>
+</div>
+
+
+<!-- ══ PAGE 7: PROBLEMS ══ -->
+<div id="page-problems" class="page">
+  <div class="page-header">
+    <div class="page-icon" style="background:rgba(245,166,35,.12);border:1px solid rgba(245,166,35,.3);">🧩</div>
+    <div>
+      <div class="page-title">تحديات البرمجة</div>
+      <div class="page-sub">حل المسائل، اجمع نقاط، وتصدر الليدربورد 🏆</div>
+    </div>
+  </div>
+
+  <!-- مستوى الصعوبة filter -->
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:24px;">
+    <button class="btn btn-ghost btn-sm prob-filter active" onclick="filterProblems('all',this)">🌐 الكل</button>
+    <button class="btn btn-sm prob-filter" onclick="filterProblems('easy',this)" style="background:rgba(34,211,122,.12);color:var(--green);border:1px solid rgba(34,211,122,.3);">🟢 سهل</button>
+    <button class="btn btn-sm prob-filter" onclick="filterProblems('medium',this)" style="background:rgba(245,166,35,.12);color:var(--orange);border:1px solid rgba(245,166,35,.3);">🟡 متوسط</button>
+    <button class="btn btn-sm prob-filter" onclick="filterProblems('hard',this)" style="background:rgba(240,90,90,.12);color:var(--red);border:1px solid rgba(240,90,90,.3);">🔴 صعب</button>
+    <button class="btn btn-sm prob-filter" onclick="filterProblems('impossible',this)" style="background:rgba(166,108,255,.12);color:var(--purple);border:1px solid rgba(166,108,255,.3);">💀 مستحيل</button>
+  </div>
+
+  <div id="problemsList" style="display:flex;flex-direction:column;gap:16px;"></div>
+
+  <!-- Problem Solver Modal -->
+  <div id="problemModal" style="display:none;position:fixed;inset:0;z-index:9998;background:rgba(0,0,0,.85);backdrop-filter:blur(10px);align-items:center;justify-content:center;padding:16px;">
+    <div style="background:var(--surface);border:1px solid var(--border2);border-radius:20px;width:100%;max-width:700px;max-height:90vh;overflow-y:auto;">
+      <div style="padding:24px 28px;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;justify-content:space-between;gap:12px;">
+        <div>
+          <div id="pmDiff" style="font-size:.72rem;font-weight:900;text-transform:uppercase;letter-spacing:2px;margin-bottom:6px;"></div>
+          <div id="pmTitle" style="font-size:1.2rem;font-weight:900;"></div>
+          <div id="pmPoints" style="font-size:.82rem;color:var(--muted);margin-top:4px;"></div>
+        </div>
+        <button onclick="closeProblemModal()" style="background:none;border:none;color:var(--muted);font-size:1.3rem;cursor:pointer;flex-shrink:0;">✕</button>
+      </div>
+      <div style="padding:24px 28px;">
+        <div id="pmDesc" style="background:var(--surface2);border-radius:10px;padding:16px;font-size:.9rem;line-height:1.9;color:var(--text);margin-bottom:20px;border:1px solid var(--border);"></div>
+        <div id="pmExamples" style="margin-bottom:20px;"></div>
+        <label class="flabel">إجابتك</label>
+        <textarea id="pmAnswer" class="finput code-editor" style="min-height:180px;margin-top:6px;font-family:var(--font-mono);" placeholder="// اكتب الكود هنا..."></textarea>
+        <div style="display:flex;gap:10px;margin-top:16px;flex-wrap:wrap;">
+          <button class="btn btn-primary" onclick="submitProblem()" id="pmSubmitBtn" style="flex:1;justify-content:center;">✅ سلّم الإجابة</button>
+          <button class="btn btn-ghost" onclick="closeProblemModal()">إلغاء</button>
+        </div>
+        <div id="pmResult" style="margin-top:16px;display:none;"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="signature"><div class="sig-line1">✦ AshrafTools ✦ بواسطة البشمهندس</div><div class="sig-line2"><span id="sig7"></span></div></div>
+</div>
+
+<!-- ══ PAGE 8: LEADERBOARD ══ -->
+<div id="page-leaderboard" class="page">
+  <div class="page-header">
+    <div class="page-icon" style="background:rgba(245,166,35,.12);border:1px solid rgba(245,166,35,.3);">🏆</div>
+    <div>
+      <div class="page-title">لوحة المتصدرين</div>
+      <div class="page-sub">أكتر ناس حلت مسائل — منافسة يومية وأسبوعية 🔥</div>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div style="display:flex;gap:8px;margin-bottom:24px;">
+    <button class="btn btn-primary lb-tab" id="lbTabAll" onclick="loadLeaderboard('all')">👑 الكل</button>
+    <button class="btn btn-ghost lb-tab" id="lbTabDaily" onclick="loadLeaderboard('daily')">📅 اليومي</button>
+    <button class="btn btn-ghost lb-tab" id="lbTabWeekly" onclick="loadLeaderboard('weekly')">📆 الأسبوعي</button>
+  </div>
+
+  <div id="leaderboardList" style="display:flex;flex-direction:column;gap:10px;">
+    <div style="text-align:center;color:var(--muted);padding:40px;">جاري التحميل...</div>
+  </div>
+
+  <div class="signature"><div class="sig-line1">✦ AshrafTools ✦ بواسطة البشمهندس</div><div class="sig-line2"><span id="sig8"></span></div></div>
+</div>
+
+<!-- ══ PAGE 9: PROFILE ══ -->
+<div id="page-profile" class="page">
+  <div id="profileContent">
+    <!-- يتحمل ديناميكي -->
+  </div>
+</div>
+
+<div id="newFileModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);
+  z-index:500;backdrop-filter:blur(6px);place-items:center;align-items:center;justify-content:center;">
+  <div style="background:var(--surface);border:1px solid var(--border2);border-radius:16px;
+    padding:28px;width:340px;max-width:90vw;box-shadow:0 20px 60px rgba(0,0,0,.6);">
+    <div style="font-size:1.1rem;font-weight:900;margin-bottom:6px;">📄 ملف Java جديد</div>
+    <div style="color:var(--muted);font-size:.83rem;margin-bottom:18px;">اكتب اسم الكلاس</div>
+    <input type="text" id="newFileNameInput" class="finput" placeholder="مثلاً: Student"
+      style="margin-bottom:16px;font-size:1rem;font-weight:700;"
+      onkeydown="if(event.key==='Enter')confirmNewFile();if(event.key==='Escape')closeNewFileModal();">
+    <div style="display:flex;gap:10px;justify-content:flex-end;">
+      <button class="btn btn-ghost" onclick="closeNewFileModal()">إلغاء</button>
+      <button class="btn btn-green" onclick="confirmNewFile()">✅ إنشاء</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ NEW CLASS MODAL ══ -->
+<div id="newClassModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);
+  z-index:500;backdrop-filter:blur(6px);place-items:center;align-items:center;justify-content:center;">
+  <div style="background:var(--surface);border:1px solid var(--border2);border-radius:16px;
+    padding:28px;width:340px;max-width:90vw;box-shadow:0 20px 60px rgba(0,0,0,.6);">
+    <div style="font-size:1.1rem;font-weight:900;margin-bottom:6px;">📊 كلاس جديد</div>
+    <div style="color:var(--muted);font-size:.83rem;margin-bottom:18px;">اكتب اسم الكلاس في الـ Diagram</div>
+    <input type="text" id="newClassNameInput" class="finput" placeholder="مثلاً: Student"
+      style="margin-bottom:16px;font-size:1rem;font-weight:700;"
+      onkeydown="if(event.key==='Enter')confirmNewClass();if(event.key==='Escape')closeNewClassModal();">
+    <div style="display:flex;gap:10px;justify-content:flex-end;">
+      <button class="btn btn-ghost" onclick="closeNewClassModal()">إلغاء</button>
+      <button class="btn btn-purple" onclick="confirmNewClass()">✅ إنشاء</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.1.5/dist/jszip.min.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/meshesha/pptxjs@1.21.1/js/pptxjs.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script src="app.js"></script>
+
+<!-- ══ API KEY MODAL ══ -->
+<div id="apiKeyModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9000;align-items:center;justify-content:center;padding:20px;">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:28px;width:100%;max-width:460px;animation:fadeUp .3s ease;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+      <div style="font-size:1.1rem;font-weight:900;">⚙️ إعدادات AI Judge</div>
+      <button onclick="closeApiKeyModal()" style="background:none;border:none;color:var(--muted);font-size:1.2rem;cursor:pointer;">✕</button>
+    </div>
+    <div style="font-size:.82rem;color:var(--muted);margin-bottom:16px;line-height:1.7;">
+      عشان الـ AI Judge يشتغل محتاج <strong style="color:var(--orange);">OpenRouter API Key</strong> مجاني.<br>
+      اعمل حساب على <a href="https://openrouter.ai/keys" target="_blank" style="color:var(--blue);">openrouter.ai/keys</a> واعمل Key جديد.
+    </div>
+    <div style="margin-bottom:6px;font-size:.82rem;font-weight:700;color:var(--muted);">الـ API KEY</div>
+    <input type="password" id="apiKeyInput" placeholder="sk-or-v1-..." 
+      style="width:100%;background:var(--surface2);border:1.5px solid var(--border);border-radius:10px;padding:12px 16px;color:var(--text);font-family:var(--mono);font-size:.85rem;outline:none;margin-bottom:16px;"
+      onfocus="this.style.borderColor='var(--orange)'" onblur="this.style.borderColor='var(--border)'">
+    <div style="display:flex;gap:10px;">
+      <button onclick="saveApiKey()" style="flex:1;background:linear-gradient(135deg,var(--orange),#f06040);border:none;border-radius:10px;padding:12px;color:white;font-family:var(--font);font-weight:900;cursor:pointer;font-size:.9rem;">💾 حفظ</button>
+      <button onclick="clearApiKey()" style="background:rgba(240,90,90,.1);border:1px solid rgba(240,90,90,.2);border-radius:10px;padding:12px 16px;color:var(--red);font-family:var(--font);font-weight:700;cursor:pointer;font-size:.85rem;">🗑️ حذف</button>
+    </div>
+    <div id="apiKeyStatus" style="margin-top:12px;font-size:.8rem;text-align:center;min-height:18px;"></div>
+  </div>
+</div>
+</body>
+</html>
